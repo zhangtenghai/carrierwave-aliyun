@@ -127,15 +127,31 @@ module CarrierWave
           end
         end
 
+        def path_to_safe_url(path, opts = {})
+          date = Time.now.to_i + 600
+          s = sign_h("GET", get_bucket_path(path), "", "" ,date)
+          query_string = {:OSSAccessKeyId => @aliyun_access_id, :Expires => date, :Signature => s}.to_query
+          if opts[:get]
+            "#{@aliyun_host}/#{path}?#{query_string}"
+          else
+            "#{@aliyun_upload_host}/#{path}?#{query_string}"
+          end
+        end
+        
         private
         def sign(verb, path, content_md5 = '', content_type = '', date)
+          h = sign_h(verb,path,content_md5,content_type,date)
+          "OSS #{@aliyun_access_id}:#{h}"
+        end
+
+        def sign_h(verb, path, content_md5 = '', content_type = '', date)
           canonicalized_oss_headers = ''
           canonicalized_resource = "/#{path}"
           string_to_sign = "#{verb}\n\n#{content_type}\n#{date}\n#{canonicalized_oss_headers}#{canonicalized_resource}"
           digest = OpenSSL::Digest.new('sha1')
           h = OpenSSL::HMAC.digest(digest, @aliyun_access_key, string_to_sign)
-          h = Base64.encode64(h)
-          "OSS #{@aliyun_access_id}:#{h}"
+          h = Base64.strict_encode64(h)
+          return h
         end
       end
 
@@ -186,6 +202,10 @@ module CarrierWave
 
         def url
           oss_connection.path_to_url(@path, :get => true)
+        end
+
+        def safe_url
+          oss_connection.path_to_safe_url(@path, :get => true)
         end
 
         def content_type
